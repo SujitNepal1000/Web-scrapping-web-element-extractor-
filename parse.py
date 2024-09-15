@@ -1,13 +1,15 @@
-import requests
-import json
-from dotenv import load_dotenv
+import openai
 import os
+from dotenv import load_dotenv
 
+# Load environment variables from .env
 load_dotenv()
 
-GEMINI_API_URL = "https://api.gemini.ai/v1/inference"
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+# Set up OpenAI API key
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API_KEY
 
+# Template for the prompt
 template = (
     "You are tasked with extracting specific information from the following text content: {dom_content}. "
     "Please follow these instructions carefully: \n\n"
@@ -17,41 +19,36 @@ template = (
     "4. **Direct Data Only:** Your output should contain only the data that is explicitly requested, with no other text."
 )
 
-def call_gemini_api(prompt_text):
-    headers = {
-        "Authorization": f"Bearer {GEMINI_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "prompt": prompt_text,
-        # You can adjust parameters as required by the API.
-        # You may need to provide additional parameters depending on Gemini's API specs.
-    }
-
-    response = requests.post(GEMINI_API_URL, headers=headers, data=json.dumps(payload))
-
-    if response.status_code == 200:
-        return response.json().get("response", "")
-    else:
-        print(f"Error: {response.status_code} - {response.text}")
+# Function to call the OpenAI API
+def call_openai_api(prompt_text):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # You can also use "gpt-4" if you have access
+            messages=[
+                {"role": "system", "content": "You are an assistant for extracting specific information."},
+                {"role": "user", "content": prompt_text}
+            ],
+            max_tokens=500,
+            n=1,
+            temperature=0.5,
+        )
+        return response['choices'][0]['message']['content'].strip()
+    except Exception as e:
+        print(f"Error calling OpenAI API: {e}")
         return ""
 
-def parse_with_gemini(dom_chunks, parse_description):
+# Function to parse DOM chunks using OpenAI API
+def parse_with_openai(dom_chunks, parse_description):
     parsed_results = []
 
     for i, chunk in enumerate(dom_chunks, start=1):
+        # Generate the prompt using the template
         prompt_text = template.format(dom_content=chunk, parse_description=parse_description)
-
-        response = call_gemini_api(prompt_text)
+        
+        # Call OpenAI API to get the extracted information
+        response = call_openai_api(prompt_text)
 
         print(f"Parsed batch: {i} of {len(dom_chunks)}")
         parsed_results.append(response)
 
     return "\n".join(parsed_results)
-
-# Usage:
-dom_chunks = ["This is a sample text.", "Another piece of text."]
-parse_description = "Extract the main topic of each text."
-parsed_results = parse_with_gemini(dom_chunks, parse_description)
-print(parsed_results)

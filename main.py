@@ -1,46 +1,65 @@
 import streamlit as st
-from scrape import scrape_website,split_dom_content, clean_body_content, extract_body_content
-from parse import  parse_with_gemini
+from scrape import (
+    scrape_website,
+    extract_body_content,
+    clean_body_content,
+    split_dom_content,
+)
+from parse import parse_with_openai
 
+# Streamlit UI
+st.title("AI Web Scraper")
 
-st.title("Web Scraping App")
+# Step 1: Enter Website URL
+url = st.text_input("Enter Website URL")
 
-# Get the website URL from the user
-url = st.text_input("Enter the URL of the website you want to scrape:")
-
-# When the button is clicked
+# Step 2: Scrape the Website
 if st.button("Scrape Website"):
-    if url:  # If the user has entered a URL
+    if url:
         st.write("Scraping the website...")
+
         try:
-            result = scrape_website(url)  # Pass the URL to the scraping function
-            body_content = extract_body_content(result)
+            # Scrape the website content
+            dom_content = scrape_website(url)
+            body_content = extract_body_content(dom_content)
             cleaned_content = clean_body_content(body_content)
-            
+
+            # Store the DOM content in Streamlit session state
             st.session_state.dom_content = cleaned_content
-            
-            with st.expander("view DOM content"):
+
+            # Display the DOM content in an expandable text box
+            with st.expander("View Scraped DOM Content"):
                 st.text_area("DOM Content", cleaned_content, height=300)
-            st.write("Website scraped successfully!")
-            st.code(result)  # Display the scraped HTML content
-            
+
+            st.success("Website scraped successfully!")
+
         except Exception as e:
             st.error(f"An error occurred: {e}")
-    else:
-        st.warning("Please enter a valid URL.")
-        
-    
+
+# Step 3: Describe what you want to parse
 if "dom_content" in st.session_state:
-    parse_description = st.text_area("Describe what you want to extract")
+    st.subheader("Parsing Section")
     
-    if st.button("parse content"):
+    # Input for the description of what to parse
+    parse_description = st.text_area("Describe what you want to parse")
+
+    # Step 4: Parse the content with OpenAI API
+    if st.button("Parse Content"):
         if parse_description:
             st.write("Parsing the content...")
+
             try:
-                extracted_data = split_dom_content(st.session_state.dom_content, parse_description)
-                st.write("Content parsed successfully!")
-                st.table(extracted_data)  # Display the extracted data
+                # Split DOM content into chunks for parsing
+                dom_chunks = split_dom_content(st.session_state.dom_content)
+
+                # Parse the content using OpenAI API
+                parsed_result = parse_with_openai(dom_chunks, parse_description)
+
+                # Display the result in the "Prompt Answer" section
+                st.subheader("Prompt Answer")
+                st.write(parsed_result)
+
             except Exception as e:
-                st.error(f"An error occurred: {e}")
+                st.error(f"An error occurred while parsing: {e}")
         else:
-            st.warning("Please describe what you want to extract.")
+            st.warning("Please describe what you want to parse.")
