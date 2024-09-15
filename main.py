@@ -1,5 +1,6 @@
 import streamlit as st
 from scrape import scrape_website,split_dom_content, clean_body_content, extract_body_content
+from parse import  parse_with_gemini
 
 
 st.title("Web Scraping App")
@@ -27,3 +28,19 @@ if st.button("Scrape Website"):
             st.error(f"An error occurred: {e}")
     else:
         st.warning("Please enter a valid URL.")
+        
+    
+if "dom_content" in st.session_state:
+    parse_description = st.text_area("Describe what you want to extract")
+    
+    if st.button("parse content"):
+        if parse_description:
+            st.write("Parsing the content...")
+            try:
+                extracted_data = split_dom_content(st.session_state.dom_content, parse_description)
+                st.write("Content parsed successfully!")
+                st.table(extracted_data)  # Display the extracted data
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+        else:
+            st.warning("Please describe what you want to extract.")
