@@ -3,6 +3,7 @@ from selenium.webdriver.chrome.service import Service
 import time
 from bs4 import BeautifulSoup
 import pandas as pd
+import re
 
 class Testrunner:
     driver = None
@@ -33,20 +34,23 @@ def extract_locators(html_content):
     soup = BeautifulSoup(html_content, "html.parser")
     elements = []
 
-    def add_element(name, tag, attrs, text=None):
+    def add_element(name, tag, attrs, text=None, placeholder=None):
         locators = []
-        
-        # Generate XPath based on attributes or text
-        if text:
-            locators.append(f"XPath: //{tag}[text()='{text}']")
-        elif 'id' in attrs:
-            locators.append(f"XPath: //{tag}[@id='{attrs['id']}']")
-        elif 'class' in attrs:
-            locators.append(f"XPath: //{tag}[contains(@class,'{' '.join(attrs['class'])}')]")
-        else:
-            locators.append(f"XPath: //{tag}")
 
-        # Add class, id, and CSS selectors
+        # Prioritize generating locators based on text content if it exists
+        if text and len(text.strip()) > 0:
+            locators.append(f"XPath: //{tag}[text()='{text.strip()}']")  # Use text for locating
+        elif 'id' in attrs:
+            locators.append(f"XPath: //{tag}[@id='{attrs['id']}']")  # Use ID if available
+        elif 'class' in attrs:
+            class_name = ' '.join(attrs['class'])
+            locators.append(f"XPath: //{tag}[contains(@class,'{class_name}')]")  # Use class if no text or ID
+        elif placeholder:
+            locators.append(f"XPath: //{tag}[@placeholder='{placeholder}']")  # Use placeholder if available
+        else:
+            locators.append(f"XPath: //{tag}")  # Default to basic XPath if no other locators are suitable
+
+        # Add additional locators (ID, class, and CSS selectors)
         if 'id' in attrs:
             locators.append(f"ID: {attrs['id']}")
         if 'class' in attrs:
@@ -54,12 +58,13 @@ def extract_locators(html_content):
         if tag:
             locators.append(f"CSS Selector: {tag}")
 
+        # Handle <a> tags with href attributes for full and partial links
         if 'href' in attrs:
             locators.append(f"Full Link: {attrs['href']}")
             locators.append(f"Partial Link: {attrs['href'].split('/')[-1]}")
 
         elements.append({
-            "Name": name,
+            "Name": text if text else (placeholder if placeholder else name),  # Use text, placeholder, or generic name
             "XPath": locators[0] if locators else '',
             "ID": locators[1] if len(locators) > 1 else '',
             "Class": locators[2] if len(locators) > 2 else '',
@@ -68,30 +73,43 @@ def extract_locators(html_content):
             "Partial Link": locators[5] if len(locators) > 5 else '',
         })
 
-    # Define keywords to identify specific elements
+    # Define keywords for specific elements
     keywords = {
         "button": "Button",
-        "title": "Title",
         "a": "Link",
-        "input": "Search Bar",
+        "input": "Input/Field",
+        "textarea": "Text Area",
+        "select": "Dropdown",
+        "h1": "Heading 1",
+        "h2": "Heading 2",
+        "h3": "Heading 3",
+        "h4": "Heading 4",
+        "h5": "Heading 5",
+        "h6": "Heading 6",
         "card": "Card",
         "filter": "Filter"
     }
 
+    # Iterate through all relevant tags and extract locators
     for tag, name in keywords.items():
         for element in soup.find_all(tag):
             attrs = element.attrs
-            text = element.get_text(strip=True)
-
-            if tag == "a" and text:
-                # Handle <a> tags with specific text
-                add_element(f"Link - {text}", tag, attrs, text=text)
-            elif tag == "button" and text:
-                # Handle <button> tags with specific text
-                add_element(f"Button - {text}", tag, attrs, text=text)
+            if tag == "a" and element.get_text(strip=True):
+                # Handle <a> tags with text
+                add_element(name, tag, attrs, text=element.get_text(strip=True))
+            elif tag == "button" and element.get_text(strip=True):
+                # Handle <button> tags with text
+                add_element(name, tag, attrs, text=element.get_text(strip=True))
+            elif tag.startswith("h") and element.get_text(strip=True):
+                # Handle headings (h1, h2, etc.) with text
+                add_element(name, tag, attrs, text=element.get_text(strip=True))
+            elif tag == "input" and 'placeholder' in attrs:
+                # Handle <input> fields with placeholder
+                add_element(name, tag, attrs, placeholder=attrs['placeholder'])
             else:
+                # Default handling for other tags
                 add_element(name, tag, attrs)
 
-    # Create DataFrame
+    # Create DataFrame from the extracted elements
     df = pd.DataFrame(elements)
     return df
