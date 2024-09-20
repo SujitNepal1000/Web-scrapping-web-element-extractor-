@@ -15,6 +15,8 @@ git clone https://github.com/your-username/web-scraper.git
 cd web-scraper
 Install dependencies:
 
+Setup your virtual environment in you are using vs code, and if you are using pycharm setup interpreter with the required packages
+
 bash
 Copy code
 pip install -r requirements.txt
