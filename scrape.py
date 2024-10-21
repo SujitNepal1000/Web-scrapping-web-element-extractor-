@@ -1,115 +1,138 @@
+import time
+import pandas as pd
+from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-import time
-from bs4 import BeautifulSoup
-import pandas as pd
-import re
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 
-class Testrunner:
-    driver = None
+class TestRunner:
+    def __init__(self):
+        self.driver = None
+        self.initialize_driver()
 
     def initialize_driver(self):
-        options = webdriver.ChromeOptions()
-        driver = webdriver.Chrome(options=options)
-        driver.maximize_window()
-        return driver
+        chrome_options = Options()
+        chrome_options.add_argument("--window-size=1920x1080")  # Set window size
 
-    def scrape_website(self, website):
-        print("Launching chrome browser")
-        
-        try:
-            self.driver = self.initialize_driver()
-            self.driver.get(website)
-            print("Navigated to the website")
-            html = self.driver.page_source
-            time.sleep(5)
-            
-            return html
-        finally:
-            print("Closing the browser")
-            if self.driver:
-                self.driver.quit()
+        # Initialize the WebDriver
+        self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
-def extract_locators(html_content):
-    soup = BeautifulSoup(html_content, "html.parser")
-    elements = []
+    def scrape_website(self, url):
+        self.driver.get(url)
+        time.sleep(3)  # Wait for the page to load
+        return self.driver.page_source  # Return the page source for further processing
 
-    def add_element(name, tag, attrs, text=None, placeholder=None):
-        locators = []
+    def close_driver(self):
+        if self.driver:
+            self.driver.quit()  # Close the browser
 
-        # Prioritize generating locators based on text content if it exists
-        if text and len(text.strip()) > 0:
-            locators.append(f"XPath: //{tag}[text()='{text.strip()}']")  # Use text for locating
-        elif 'id' in attrs:
-            locators.append(f"XPath: //{tag}[@id='{attrs['id']}']")  # Use ID if available
-        elif 'class' in attrs:
-            class_name = ' '.join(attrs['class'])
-            locators.append(f"XPath: //{tag}[contains(@class,'{class_name}')]")  # Use class if no text or ID
-        elif placeholder:
-            locators.append(f"XPath: //{tag}[@placeholder='{placeholder}']")  # Use placeholder if available
-        else:
-            locators.append(f"XPath: //{tag}")  # Default to basic XPath if no other locators are suitable
+    def extract_locators(self, html_content):
+        soup = BeautifulSoup(html_content, "html.parser")
+        elements = []
 
-        # Add additional locators (ID, class, and CSS selectors)
-        if 'id' in attrs:
-            locators.append(f"ID: {attrs['id']}")
-        if 'class' in attrs:
-            locators.append(f"Class: {' '.join(attrs['class'])}")
-        if tag:
-            locators.append(f"CSS Selector: {tag}")
-
-        # Handle <a> tags with href attributes for full and partial links
-        if 'href' in attrs:
-            locators.append(f"Full Link: {attrs['href']}")
-            locators.append(f"Partial Link: {attrs['href'].split('/')[-1]}")
-
-        elements.append({
-            "Name": text if text else (placeholder if placeholder else name),  # Use text, placeholder, or generic name
-            "XPath": locators[0] if locators else '',
-            "ID": locators[1] if len(locators) > 1 else '',
-            "Class": locators[2] if len(locators) > 2 else '',
-            "CSS Selector": locators[3] if len(locators) > 3 else '',
-            "Full Link": locators[4] if len(locators) > 4 else '',
-            "Partial Link": locators[5] if len(locators) > 5 else '',
-        })
-
-    # Define keywords for specific elements
-    keywords = {
-        "button": "Button",
-        "a": "Link",
-        "input": "Input/Field",
-        "textarea": "Text Area",
-        "select": "Dropdown",
-        "h1": "Heading 1",
-        "h2": "Heading 2",
-        "h3": "Heading 3",
-        "h4": "Heading 4",
-        "h5": "Heading 5",
-        "h6": "Heading 6",
-        "card": "Card",
-        "filter": "Filter"
-    }
-
-    # Iterate through all relevant tags and extract locators
-    for tag, name in keywords.items():
-        for element in soup.find_all(tag):
-            attrs = element.attrs
-            if tag == "a" and element.get_text(strip=True):
-                # Handle <a> tags with text
-                add_element(name, tag, attrs, text=element.get_text(strip=True))
-            elif tag == "button" and element.get_text(strip=True):
-                # Handle <button> tags with text
-                add_element(name, tag, attrs, text=element.get_text(strip=True))
-            elif tag.startswith("h") and element.get_text(strip=True):
-                # Handle headings (h1, h2, etc.) with text
-                add_element(name, tag, attrs, text=element.get_text(strip=True))
-            elif tag == "input" and 'placeholder' in attrs:
-                # Handle <input> fields with placeholder
-                add_element(name, tag, attrs, placeholder=attrs['placeholder'])
+        def add_element(name, tag, attrs, text=None, placeholder=None):
+            locators = []
+            if text and len(text.strip()) > 0:
+                locators.append(f"XPath: //{tag}[text()='{text.strip()}']")
+            elif 'id' in attrs:
+                locators.append(f"XPath: //{tag}[@id='{attrs['id']}']")
+            elif 'class' in attrs:
+                class_name = ' '.join(attrs['class'])
+                locators.append(f"XPath: //{tag}[contains(@class,'{class_name}')]")
+            elif placeholder:
+                locators.append(f"XPath: //{tag}[@placeholder='{placeholder}']")
             else:
-                # Default handling for other tags
-                add_element(name, tag, attrs)
+                locators.append(f"XPath: //{tag}")
 
-    # Create DataFrame from the extracted elements
-    df = pd.DataFrame(elements)
-    return df
+            if 'id' in attrs:
+                locators.append(f"ID: {attrs['id']}")
+            if 'class' in attrs:
+                locators.append(f"Class: {' '.join(attrs['class'])}")
+            if tag:
+                locators.append(f"CSS Selector: {tag}")
+
+            if 'href' in attrs:
+                locators.append(f"Full Link: {attrs['href']}")
+                locators.append(f"Partial Link: {attrs['href'].split('/')[-1]}")
+
+            elements.append({
+                "Name": text if text else (placeholder if placeholder else name),
+                "XPath": locators[0] if locators else '',
+                "ID": locators[1] if len(locators) > 1 else '',
+                "Class": locators[2] if len(locators) > 2 else '',
+                "CSS Selector": locators[3] if len(locators) > 3 else '',
+                "Full Link": locators[4] if len(locators) > 4 else '',
+                "Partial Link": locators[5] if len(locators) > 5 else '',
+            })
+
+        keywords = {
+            "button": "Button",
+            "a": "Link",
+            "input": "Input/Field",
+            "textarea": "Text Area",
+            "select": "Dropdown",
+            "h1": "Heading 1",
+            "h2": "Heading 2",
+            "h3": "Heading 3",
+            "h4": "Heading 4",
+            "h5": "Heading 5",
+            "h6": "Heading 6",
+            "label": "Label",
+            "card": "Card",
+            "filter": "Filter"
+        }
+
+        for tag, name in keywords.items():
+            for element in soup.find_all(tag):
+                attrs = element.attrs
+                if tag == "a" and element.get_text(strip=True):
+                    add_element(name, tag, attrs, text=element.get_text(strip=True))
+                elif tag == "button" and element.get_text(strip=True):
+                    add_element(name, tag, attrs, text=element.get_text(strip=True))
+                elif tag.startswith("h") and element.get_text(strip=True):
+                    add_element(name, tag, attrs, text=element.get_text(strip=True))
+                elif tag == "input" and 'placeholder' in attrs:
+                    add_element(name, tag, attrs, placeholder=attrs['placeholder'])
+                elif tag == "label":
+                    add_element(name, tag, attrs, text=element.get_text(strip=True))
+                else:
+                    add_element(name, tag, attrs)
+
+        df = pd.DataFrame(elements)
+        return df
+
+    def enter_value(self, locator, value):
+        """Enter a value into an input field identified by the locator."""
+        try:
+            element = self.driver.find_element(By.XPATH, locator)
+            element.clear()  # Clear existing text
+            element.send_keys(value)  # Send the new value
+        except Exception as e:
+            print(f"Error while entering value: {e}")
+
+    def click_element(self, locator):
+        """Click on an element identified by the locator."""
+        try:
+            element = self.driver.find_element(By.XPATH, locator)
+            element.click()
+        except Exception as e:
+            print(f"Error while clicking element: {e}")
+
+    def verify_element(self, locator):
+        """Verify if an element identified by the locator is present."""
+        try:
+            element = self.driver.find_element(By.XPATH, locator)
+            return element.is_displayed()  # Check if the element is displayed
+        except Exception as e:
+            print(f"Error while verifying element: {e}")
+            return False
+
+    def scroll_to_element(self, locator):
+        """Scroll to an element identified by the locator."""
+        try:
+            element = self.driver.find_element(By.XPATH, locator)
+            self.driver.execute_script("arguments[0].scrollIntoView();", element)  # Scroll to the element
+        except Exception as e:
+            print(f"Error while scrolling to element: {e}")
