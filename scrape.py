@@ -69,18 +69,49 @@ class TestRunner:
                 "Partial Link": ''
             }
 
-            # Determine the XPath locator
-            if text and len(text.strip()) > 0:
-                element_data["XPath"] = f"//{tag}[text()='{text.strip()}']"
-            elif 'id' in attrs:
-                element_data["XPath"] = f"//{tag}[@id='{attrs['id']}']"
-            elif 'class' in attrs:
-                class_name = ' '.join(attrs['class'])
-                element_data["XPath"] = f"//{tag}[contains(@class,'{class_name}')]"
-            elif placeholder:
-                element_data["XPath"] = f"//{tag}[@placeholder='{placeholder}']"
+            # XPath prioritization logic for input fields
+            if tag == 'input':
+                # Prioritize based on id, placeholder, name, and class
+                if 'id' in attrs:
+                    element_data["XPath"] = f"//input[@id='{attrs['id']}']"
+                elif 'placeholder' in attrs:
+                    element_data["XPath"] = f"//input[@placeholder='{attrs['placeholder']}']"
+                elif 'name' in attrs:
+                    element_data["XPath"] = f"//input[@name='{attrs['name']}']"
+                elif 'class' in attrs:
+                    class_name = ' '.join(attrs['class'])
+                    element_data["XPath"] = f"//input[@class='{class_name}']"
+                else:
+                    element_data["XPath"] = "//input"
+            
+            # XPath prioritization logic for button elements
+            elif tag == 'button':
+                # Prioritize based on id, type, text, and class
+                if 'id' in attrs:
+                    element_data["XPath"] = f"//button[@id='{attrs['id']}']"
+                elif 'type' in attrs:
+                    element_data["XPath"] = f"//button[@type='{attrs['type']}']"
+                elif text and len(text.strip()) > 0:
+                    element_data["XPath"] = f"//button[text()='{text.strip()}']"
+                elif 'class' in attrs:
+                    class_name = ' '.join(attrs['class'])
+                    element_data["XPath"] = f"//button[@class='{class_name}']"
+                else:
+                    element_data["XPath"] = "//button"
+
+            # Default logic for other elements
             else:
-                element_data["XPath"] = f"//{tag}"
+                if text and len(text.strip()) > 0:
+                    element_data["XPath"] = f"//{tag}[text()='{text.strip()}']"
+                elif 'id' in attrs:
+                    element_data["XPath"] = f"//{tag}[@id='{attrs['id']}']"
+                elif 'class' in attrs:
+                    class_name = ' '.join(attrs['class'])
+                    element_data["XPath"] = f"//{tag}[@class='{class_name}']"
+                elif placeholder:
+                    element_data["XPath"] = f"//{tag}[@placeholder='{placeholder}']"
+                else:
+                    element_data["XPath"] = f"//{tag}"
 
             # Extract other attributes
             if 'id' in attrs:
