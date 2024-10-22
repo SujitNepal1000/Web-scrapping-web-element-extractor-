@@ -15,6 +15,12 @@ git clone https://github.com/your-username/web-scraper.git
 cd web-scraper
 Install dependencies:
 
+Setup your virtual environment if you are using vs code, and if you are using pycharm setup interpreter with the required packages
+code to setup virtual environment:
+python -m venv [name of youy environment] example: python -m venv venv
+to activate the virtual environment: .\venv\scripts\activate.ps1
+To deactivate the virtual environment: deactivate
+
 bash
 Copy code
 pip install -r requirements.txt
@@ -41,5 +47,5 @@ Example
 Once you enter a URL, the scraper will display elements like:
 
 Name	 XPath	                     ID	           Class	      CSS Selector	  Full Link
-Button	//button[text()='Submit']	               btn-primary    button	
+Submit	//button[text()='Submit']	               btn-primary    button	
 Link	//a[text()='About Us']	               	   nav-link	      a	              /about

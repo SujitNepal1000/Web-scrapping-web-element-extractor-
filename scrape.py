@@ -1,71 +1,101 @@
-import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 import pandas as pd
 from bs4 import BeautifulSoup
-from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
+import time
 
 class TestRunner:
     def __init__(self):
         self.driver = None
-        self.initialize_driver()
 
-    def initialize_driver(self):
-        chrome_options = Options()
-        chrome_options.add_argument("--window-size=1920x1080")  # Set window size
-
-        # Initialize the WebDriver
-        self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
-
-    def scrape_website(self, url):
+    def start_browser(self, url):
+        options = webdriver.ChromeOptions()
+        self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        self.driver.maximize_window()
         self.driver.get(url)
-        time.sleep(3)  # Wait for the page to load
-        return self.driver.page_source  # Return the page source for further processing
+        time.sleep(2)  # Wait for the page to load
 
-    def close_driver(self):
-        if self.driver:
-            self.driver.quit()  # Close the browser
+    def enter_value(self, locator, value):
+        try:
+            element = self.driver.find_element(By.XPATH, locator)
+            element.clear()
+            element.send_keys(value)
+            time.sleep(1)  # Adding delay for better visibility in actions
+        except Exception as e:
+            raise Exception(f"Error entering value: {e}")
+
+    def click_element(self, locator):
+        try:
+            element = self.driver.find_element(By.XPATH, locator)
+            ActionChains(self.driver).move_to_element(element).click().perform()
+            time.sleep(3)  # Wait for action to complete
+        except Exception as e:
+            raise Exception(f"Error clicking element: {e}")
+
+    def scroll_to_element(self, locator):
+        try:
+            element = self.driver.find_element(By.XPATH, locator)
+            self.driver.execute_script("arguments[0].scrollIntoView(true);", element)
+            time.sleep(1)  # Adding delay for better visibility in actions
+        except Exception as e:
+            raise Exception(f"Error scrolling to element: {e}")
+
+    def verify_element(self, locator):
+        try:
+            element = self.driver.find_element(By.XPATH, locator)
+            assert element.is_displayed(), f"Element with locator {locator} is not displayed."
+        except Exception as e:
+            raise Exception(f"Error verifying element: {e}")
+
+    def get_page_source(self):
+        return self.driver.page_source
 
     def extract_locators(self, html_content):
         soup = BeautifulSoup(html_content, "html.parser")
         elements = []
 
         def add_element(name, tag, attrs, text=None, placeholder=None):
-            locators = []
+            # Prepare a dictionary for the current element
+            element_data = {
+                "Name": text if text else (placeholder if placeholder else name),
+                "XPath": '',
+                "ID": '',
+                "Class": '',
+                "CSS Selector": '',
+                "Full Link": '',
+                "Partial Link": ''
+            }
+
+            # Determine the XPath locator
             if text and len(text.strip()) > 0:
-                locators.append(f"XPath: //{tag}[text()='{text.strip()}']")
+                element_data["XPath"] = f"//{tag}[text()='{text.strip()}']"
             elif 'id' in attrs:
-                locators.append(f"XPath: //{tag}[@id='{attrs['id']}']")
+                element_data["XPath"] = f"//{tag}[@id='{attrs['id']}']"
             elif 'class' in attrs:
                 class_name = ' '.join(attrs['class'])
-                locators.append(f"XPath: //{tag}[contains(@class,'{class_name}')]")
+                element_data["XPath"] = f"//{tag}[contains(@class,'{class_name}')]"
             elif placeholder:
-                locators.append(f"XPath: //{tag}[@placeholder='{placeholder}']")
+                element_data["XPath"] = f"//{tag}[@placeholder='{placeholder}']"
             else:
-                locators.append(f"XPath: //{tag}")
+                element_data["XPath"] = f"//{tag}"
 
+            # Extract other attributes
             if 'id' in attrs:
-                locators.append(f"ID: {attrs['id']}")
+                element_data["ID"] = attrs["id"]  # Directly use the ID
             if 'class' in attrs:
-                locators.append(f"Class: {' '.join(attrs['class'])}")
+                element_data["Class"] = ' '.join(attrs['class'])  # Join classes
             if tag:
-                locators.append(f"CSS Selector: {tag}")
+                element_data["CSS Selector"] = tag  # Use the tag name as CSS Selector
 
+            # Links
             if 'href' in attrs:
-                locators.append(f"Full Link: {attrs['href']}")
-                locators.append(f"Partial Link: {attrs['href'].split('/')[-1]}")
+                element_data["Full Link"] = attrs['href']
+                element_data["Partial Link"] = attrs['href'].split('/')[-1]
 
-            elements.append({
-                "Name": text if text else (placeholder if placeholder else name),
-                "XPath": locators[0] if locators else '',
-                "ID": locators[1] if len(locators) > 1 else '',
-                "Class": locators[2] if len(locators) > 2 else '',
-                "CSS Selector": locators[3] if len(locators) > 3 else '',
-                "Full Link": locators[4] if len(locators) > 4 else '',
-                "Partial Link": locators[5] if len(locators) > 5 else '',
-            })
+            elements.append(element_data)
 
         keywords = {
             "button": "Button",
@@ -100,39 +130,16 @@ class TestRunner:
                 else:
                     add_element(name, tag, attrs)
 
+        # Create a DataFrame from the list of elements
         df = pd.DataFrame(elements)
+
+        # Reorder the columns to match the desired output
+        df = df[["Name", "XPath", "ID", "Class", "CSS Selector", "Full Link", "Partial Link"]]
+        df.index.name = "S.N"  # Set index name as S.N
+        df.reset_index(inplace=True)  # Convert index to a column
+
         return df
 
-    def enter_value(self, locator, value):
-        """Enter a value into an input field identified by the locator."""
-        try:
-            element = self.driver.find_element(By.XPATH, locator)
-            element.clear()  # Clear existing text
-            element.send_keys(value)  # Send the new value
-        except Exception as e:
-            print(f"Error while entering value: {e}")
-
-    def click_element(self, locator):
-        """Click on an element identified by the locator."""
-        try:
-            element = self.driver.find_element(By.XPATH, locator)
-            element.click()
-        except Exception as e:
-            print(f"Error while clicking element: {e}")
-
-    def verify_element(self, locator):
-        """Verify if an element identified by the locator is present."""
-        try:
-            element = self.driver.find_element(By.XPATH, locator)
-            return element.is_displayed()  # Check if the element is displayed
-        except Exception as e:
-            print(f"Error while verifying element: {e}")
-            return False
-
-    def scroll_to_element(self, locator):
-        """Scroll to an element identified by the locator."""
-        try:
-            element = self.driver.find_element(By.XPATH, locator)
-            self.driver.execute_script("arguments[0].scrollIntoView();", element)  # Scroll to the element
-        except Exception as e:
-            print(f"Error while scrolling to element: {e}")
+    def close_browser(self):
+        if self.driver:
+            self.driver.quit()
