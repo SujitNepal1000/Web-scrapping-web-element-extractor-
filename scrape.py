@@ -58,7 +58,6 @@ class TestRunner:
         elements = []
 
         def add_element(name, tag, attrs, text=None, placeholder=None):
-            # Prepare a dictionary for the current element
             element_data = {
                 "Name": text if text else (placeholder if placeholder else name),
                 "XPath": '',
@@ -69,9 +68,7 @@ class TestRunner:
                 "Partial Link": ''
             }
 
-            # XPath prioritization logic for input fields
             if tag == 'input':
-                # Prioritize based on id, placeholder, name, and class
                 if 'id' in attrs:
                     element_data["XPath"] = f"//input[@id='{attrs['id']}']"
                 elif 'placeholder' in attrs:
@@ -84,44 +81,73 @@ class TestRunner:
                 else:
                     element_data["XPath"] = "//input"
             
-            # XPath prioritization logic for button elements
             elif tag == 'button':
-                # Prioritize based on id, type, text, and class
                 if 'id' in attrs:
                     element_data["XPath"] = f"//button[@id='{attrs['id']}']"
-                elif 'type' in attrs:
-                    element_data["XPath"] = f"//button[@type='{attrs['type']}']"
-                elif text and len(text.strip()) > 0:
-                    element_data["XPath"] = f"//button[text()='{text.strip()}']"
+                    element_data["Name"] = f"button = id ({attrs['id']})"
                 elif 'class' in attrs:
                     class_name = ' '.join(attrs['class'])
                     element_data["XPath"] = f"//button[@class='{class_name}']"
+                    element_data["Name"] = f"button = class"
+                elif 'type' in attrs:
+                    element_data["XPath"] = f"//button[@type='{attrs['type']}']"
+                    element_data["Name"] = f"button = type ({attrs['type']})"
+                elif text and len(text.strip()) > 0:
+                    element_data["XPath"] = f"//button[text()='{text.strip()}']"
+                    element_data["Name"] = f"button = text ({text.strip()})"
                 else:
                     element_data["XPath"] = "//button"
 
-            # Default logic for other elements
-            else:
+            elif tag == 'div':
+                # Give priority to text extraction for divs
                 if text and len(text.strip()) > 0:
-                    element_data["XPath"] = f"//{tag}[text()='{text.strip()}']"
+                    element_data["XPath"] = f"//div[normalize-space(text())='{text.strip()}']"
+                    element_data["Name"] = f"div = text ({text.strip()})"
                 elif 'id' in attrs:
-                    element_data["XPath"] = f"//{tag}[@id='{attrs['id']}']"
+                    element_data["XPath"] = f"//div[@id='{attrs['id']}']"
+                    element_data["Name"] = f"div = id ({attrs['id']})"
                 elif 'class' in attrs:
                     class_name = ' '.join(attrs['class'])
-                    element_data["XPath"] = f"//{tag}[@class='{class_name}']"
-                elif placeholder:
-                    element_data["XPath"] = f"//{tag}[@placeholder='{placeholder}']"
+                    element_data["XPath"] = f"//div[@class='{class_name}']"
+                    element_data["Name"] = f"div = class"
                 else:
-                    element_data["XPath"] = f"//{tag}"
+                    element_data["XPath"] = "//div"
+                    element_data["Name"] = "div"
 
-            # Extract other attributes
+            elif tag == 'a':
+                if 'href' in attrs:
+                    element_data["XPath"] = f"//a[@href='{attrs['href']}']"
+                    element_data["Name"] = f"link = href ({attrs['href']})"
+                elif text and len(text.strip()) > 0:
+                    element_data["XPath"] = f"//a[normalize-space(text())='{text.strip()}']"
+                    element_data["Name"] = f"link = text ({text.strip()})"
+                else:
+                    element_data["XPath"] = "//a"
+                    element_data["Name"] = "link"
+
+            elif tag == 'span':
+                # Give priority to text extraction for spans
+                if text and len(text.strip()) > 0:
+                    element_data["XPath"] = f"//span[normalize-space(text())='{text.strip()}']"
+                    element_data["Name"] = f"span = text ({text.strip()})"
+                elif 'id' in attrs:
+                    element_data["XPath"] = f"//span[@id='{attrs['id']}']"
+                    element_data["Name"] = f"span = id ({attrs['id']})"
+                elif 'class' in attrs:
+                    class_name = ' '.join(attrs['class'])
+                    element_data["XPath"] = f"//span[@class='{class_name}']"
+                    element_data["Name"] = f"span = class"
+                else:
+                    element_data["XPath"] = "//span"
+                    element_data["Name"] = "span"
+
             if 'id' in attrs:
-                element_data["ID"] = attrs["id"]  # Directly use the ID
+                element_data["ID"] = attrs["id"]
             if 'class' in attrs:
-                element_data["Class"] = ' '.join(attrs['class'])  # Join classes
+                element_data["Class"] = ' '.join(attrs['class'])
             if tag:
-                element_data["CSS Selector"] = tag  # Use the tag name as CSS Selector
+                element_data["CSS Selector"] = tag
 
-            # Links
             if 'href' in attrs:
                 element_data["Full Link"] = attrs['href']
                 element_data["Partial Link"] = attrs['href'].split('/')[-1]
@@ -142,7 +168,9 @@ class TestRunner:
             "h6": "Heading 6",
             "label": "Label",
             "card": "Card",
-            "filter": "Filter"
+            "filter": "Filter",
+            "div": "Div",
+            "span": "Span"
         }
 
         for tag, name in keywords.items():
@@ -158,16 +186,22 @@ class TestRunner:
                     add_element(name, tag, attrs, placeholder=attrs['placeholder'])
                 elif tag == "label":
                     add_element(name, tag, attrs, text=element.get_text(strip=True))
+                elif tag == "div":
+                    # Give priority to text extraction for divs
+                    if element.get_text(strip=True):
+                        add_element(name, tag, attrs, text=element.get_text(strip=True))
+                    else:
+                        add_element(name, tag, attrs)  # Fallback to add_element without text
+                elif tag == "span":
+                    # Give priority to text extraction for spans
+                    add_element(name, tag, attrs, text=element.get_text(strip=True))
                 else:
                     add_element(name, tag, attrs)
 
-        # Create a DataFrame from the list of elements
         df = pd.DataFrame(elements)
-
-        # Reorder the columns to match the desired output
         df = df[["Name", "XPath", "ID", "Class", "CSS Selector", "Full Link", "Partial Link"]]
-        df.index.name = "S.N"  # Set index name as S.N
-        df.reset_index(inplace=True)  # Convert index to a column
+        df.index.name = "S.N"
+        df.reset_index(inplace=True)
 
         return df
 
