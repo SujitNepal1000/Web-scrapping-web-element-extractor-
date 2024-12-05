@@ -35,7 +35,7 @@ def main():
             if st.button(f"Remove Action {index + 1}", key=f"remove_action_{index}"):
                 action_components.pop(index)
                 st.session_state.action_components = action_components
-                st.write("Are you sure you want to remove the action.")
+                st.write("Action component removed.")
                 break  # Exit the loop to refresh the display of components
 
     st.session_state.action_components = action_components
