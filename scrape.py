@@ -5,6 +5,8 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.service import Service
 import pandas as pd
 from bs4 import BeautifulSoup
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 import time
 
 class TestRunner:
@@ -123,19 +125,39 @@ class TestRunner:
                 else:
                     element_data["XPath"] = "//input"
             
-            # Handle Button Elements
             elif tag == 'button':
-                if text and len(text.strip()) > 0:
-                    element_data["XPath"] = f"//button[text()='{text.strip()}']"
-                elif 'id' in attrs:
+                if 'id' in attrs:
                     element_data["XPath"] = f"//button[@id='{attrs['id']}']"
+                    element_data["Name"] = f"button = id ({attrs['id']})"
                 elif 'class' in attrs:
                     class_name = ' '.join(attrs['class'])
                     element_data["XPath"] = f"//button[@class='{class_name}']"
+                    element_data["Name"] = f"button = class"
+                elif 'type' in attrs:
+                    element_data["XPath"] = f"//button[@type='{attrs['type']}']"
+                    element_data["Name"] = f"button = type ({attrs['type']})"
+                elif text and len(text.strip()) > 0:
+                    element_data["XPath"] = f"//button[text()='{text.strip()}']"
+                    element_data["Name"] = f"button = text ({text.strip()})"
                 else:
                     element_data["XPath"] = "//button"
-            
-            # Handle Links
+
+            elif tag == 'div':
+                # Give priority to text extraction for divs
+                if text and len(text.strip()) > 0:
+                    element_data["XPath"] = f"//div[normalize-space(text())='{text.strip()}']"
+                    element_data["Name"] = f"div = text ({text.strip()})"
+                elif 'id' in attrs:
+                    element_data["XPath"] = f"//div[@id='{attrs['id']}']"
+                    element_data["Name"] = f"div = id ({attrs['id']})"
+                elif 'class' in attrs:
+                    class_name = ' '.join(attrs['class'])
+                    element_data["XPath"] = f"//div[@class='{class_name}']"
+                    element_data["Name"] = f"div = class"
+                else:
+                    element_data["XPath"] = "//div"
+                    element_data["Name"] = "div"
+
             elif tag == 'a':
                 if 'href' in attrs:
                     element_data["XPath"] = f"//a[@href='{attrs['href']}']"
